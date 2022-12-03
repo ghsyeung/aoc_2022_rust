@@ -1,63 +1,12 @@
+use std::str::FromStr;
+
+use eyre::eyre;
+
 #[derive(PartialEq, Eq, Copy, Clone)]
 enum PlayType {
     Rock,
     Paper,
     Scissors,
-}
-
-#[derive(PartialEq, Eq, Copy, Clone)]
-enum Outcome {
-    Win,
-    Draw,
-    Lose,
-}
-
-const fn cheat(opponent: PlayType, outcome: Outcome) -> PlayType {
-    match (opponent, outcome) {
-        (PlayType::Rock, Outcome::Win) => PlayType::Paper,
-        (PlayType::Rock, Outcome::Draw) => PlayType::Rock,
-        (PlayType::Rock, Outcome::Lose) => PlayType::Scissors,
-        (PlayType::Paper, Outcome::Win) => PlayType::Scissors,
-        (PlayType::Paper, Outcome::Draw) => PlayType::Paper,
-        (PlayType::Paper, Outcome::Lose) => PlayType::Rock,
-        (PlayType::Scissors, Outcome::Win) => PlayType::Rock,
-        (PlayType::Scissors, Outcome::Draw) => PlayType::Scissors,
-        (PlayType::Scissors, Outcome::Lose) => PlayType::Paper,
-    }
-}
-
-const fn play(opponent: PlayType, mine: PlayType) -> Outcome {
-    match (opponent, mine) {
-        (PlayType::Rock, PlayType::Paper) => Outcome::Win,
-        (PlayType::Rock, PlayType::Scissors) => Outcome::Lose,
-        (PlayType::Paper, PlayType::Scissors) => Outcome::Win,
-        (PlayType::Paper, PlayType::Rock) => Outcome::Lose,
-        (PlayType::Scissors, PlayType::Paper) => Outcome::Lose,
-        (PlayType::Scissors, PlayType::Rock) => Outcome::Win,
-        (PlayType::Rock, PlayType::Rock) => Outcome::Draw,
-        (PlayType::Paper, PlayType::Paper) => Outcome::Draw,
-        (PlayType::Scissors, PlayType::Scissors) => Outcome::Draw,
-    }
-}
-
-const fn score_of_play(p: PlayType) -> u32 {
-    match p {
-        PlayType::Rock => 1,
-        PlayType::Paper => 2,
-        PlayType::Scissors => 3,
-    }
-}
-
-const fn score_of_outcome(p: Outcome) -> u32 {
-    match p {
-        Outcome::Win => 6,
-        Outcome::Draw => 3,
-        Outcome::Lose => 0,
-    }
-}
-
-const fn score_of_round(opponent: PlayType, mine: PlayType) -> u32 {
-    score_of_play(mine) + score_of_outcome(play(opponent, mine))
 }
 
 fn parse_opponent(s: &str) -> PlayType {
@@ -87,37 +36,151 @@ fn parse_outcome(s: &str) -> Outcome {
     }
 }
 
-pub fn part_one(input: &str) -> Option<u32> {
+impl PlayType {
+    pub fn win_against(p: &Self) -> Self {
+        match p {
+            Self::Rock => Self::Paper,
+            Self::Paper => Self::Scissors,
+            Self::Scissors => Self::Rock,
+        }
+    }
+
+    pub fn play(&self, opponent: &Self) -> Outcome {
+        if Self::win_against(opponent) == *self {
+            Outcome::Win
+        } else if Self::win_against(self) == *opponent {
+            Outcome::Lose
+        } else {
+            Outcome::Draw
+        }
+    }
+
+    pub fn score(&self) -> u32 {
+        match self {
+            PlayType::Rock => 1,
+            PlayType::Paper => 2,
+            PlayType::Scissors => 3,
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Copy, Clone)]
+enum Outcome {
+    Win,
+    Draw,
+    Lose,
+}
+
+impl Outcome {
+    pub fn cheat(&self, opponent: &PlayType) -> PlayType {
+        let win = PlayType::win_against(opponent);
+        let lose = PlayType::win_against(&win);
+        match self {
+            Self::Win => win,
+            Self::Draw => *opponent,
+            Self::Lose => lose,
+        }
+    }
+
+    pub fn score(&self) -> u32 {
+        match self {
+            Outcome::Win => 6,
+            Outcome::Draw => 3,
+            Outcome::Lose => 0,
+        }
+    }
+}
+
+struct CheatRound {
+    opponent: PlayType,
+    outcome: Outcome,
+}
+
+impl CheatRound {
+    pub fn get_round(&self) -> Round {
+        let mine = self.outcome.cheat(&self.opponent);
+
+        Round {
+            mine,
+            opponent: self.opponent,
+        }
+    }
+}
+
+impl FromStr for CheatRound {
+    type Err = color_eyre::Report;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut iter = s.split_whitespace();
+        let opponent = iter
+            .next()
+            .map(parse_opponent)
+            .ok_or(eyre!("Opponent play expected"))?;
+        let outcome = iter
+            .next()
+            .map(parse_outcome)
+            .ok_or(eyre!("Outcome expected"))?;
+        Ok(CheatRound { outcome, opponent })
+    }
+}
+
+struct Round {
+    mine: PlayType,
+    opponent: PlayType,
+}
+
+impl Round {
+    pub fn score(&self) -> u32 {
+        self.mine.score() + self.mine.play(&self.opponent).score()
+    }
+}
+
+impl FromStr for Round {
+    type Err = color_eyre::Report;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut iter = s.split_whitespace();
+        let opponent = iter
+            .next()
+            .map(parse_opponent)
+            .ok_or(eyre!("Opponent play expected"))?;
+        let mine = iter
+            .next()
+            .map(parse_mine)
+            .ok_or(eyre!("Mine play expected"))?;
+        Ok(Round { mine, opponent })
+    }
+}
+
+pub fn part_one(input: &str) -> color_eyre::Result<u32> {
     let mut total_score: u32 = 0;
     for line in input.split("\n") {
         if !line.trim().is_empty() {
-            let mut it = line.split_whitespace().into_iter();
-            let opponent = parse_opponent(it.next().unwrap());
-            let mine = parse_mine(it.next().unwrap());
-            total_score += score_of_round(opponent, mine);
+            let round: Round = Round::from_str(line)?;
+            total_score += round.score();
         }
     }
-    Some(total_score)
+    Ok(total_score)
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
+pub fn part_two(input: &str) -> color_eyre::Result<u32> {
     let mut total_score: u32 = 0;
     for line in input.split("\n") {
         if !line.trim().is_empty() {
-            let mut it = line.split_whitespace().into_iter();
-            let opponent = parse_opponent(it.next().unwrap());
-            let outcome = parse_outcome(it.next().unwrap());
-            let mine = cheat(opponent, outcome);
-            total_score += score_of_round(opponent, mine);
+            let cheat_round: CheatRound = CheatRound::from_str(line)?;
+            let round = cheat_round.get_round();
+            total_score += round.score();
         }
     }
-    Some(total_score)
+    Ok(total_score)
 }
 
-fn main() {
+fn main() -> color_eyre::Result<()> {
+    color_eyre::install()?;
     let input = &advent_of_code::read_file("inputs", 2);
     advent_of_code::solve!(1, part_one, input);
     advent_of_code::solve!(2, part_two, input);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -127,12 +190,12 @@ mod tests {
     #[test]
     fn test_part_one() {
         let input = advent_of_code::read_file("examples", 2);
-        assert_eq!(part_one(&input), Some(15));
+        assert_eq!(part_one(&input).unwrap(), 15);
     }
 
     #[test]
     fn test_part_two() {
         let input = advent_of_code::read_file("examples", 2);
-        assert_eq!(part_two(&input), Some(12));
+        assert_eq!(part_two(&input).unwrap(), 12);
     }
 }

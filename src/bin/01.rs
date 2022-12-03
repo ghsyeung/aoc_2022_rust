@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-pub fn part_one(input: &str) -> Option<u32> {
+pub fn part_one(input: &str) -> color_eyre::Result<u32> {
     let mut max: Option<u32> = None;
     let iter = input.split('\n');
     let mut current: Option<u32> = None;
@@ -24,10 +24,13 @@ pub fn part_one(input: &str) -> Option<u32> {
             }
         }
     }
-    max
+    match max {
+        Some(s) => Ok(s),
+        None => Err(eyre::eyre!("invalid")),
+    }
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
+pub fn part_two(input: &str) -> color_eyre::Result<u32> {
     let top_3 = input
         .split('\n')
         // translate into [Some(1), Some(2), None, Some(3), Some(4), ...]
@@ -50,7 +53,7 @@ pub fn part_two(input: &str) -> Option<u32> {
         .sorted_by(|a: &u32, b| Ord::cmp(b, a))
         .take(3);
 
-    Some(top_3.sum())
+    Ok(top_3.sum())
 }
 
 fn main() {
@@ -66,12 +69,12 @@ mod tests {
     #[test]
     fn test_part_one() {
         let input = advent_of_code::read_file("examples", 1);
-        assert_eq!(part_one(&input), Some(24000));
+        assert_eq!(part_one(&input).unwrap(), 24000);
     }
 
     #[test]
     fn test_part_two() {
         let input = advent_of_code::read_file("examples", 1);
-        assert_eq!(part_two(&input), Some(45000));
+        assert_eq!(part_two(&input).unwrap(), 45000);
     }
 }
