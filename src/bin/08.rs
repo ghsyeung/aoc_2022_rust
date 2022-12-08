@@ -33,16 +33,17 @@ impl Grid {
     pub fn view_score(&self, x: usize, y: usize) -> usize {
         let me = self.at(x, y);
         let mut total_score = 1;
-        for trees in [
-            self.up(x, y).collect::<Vec<_>>(),
-            self.down(x, y).collect::<Vec<_>>(),
-            self.left(x, y).collect::<Vec<_>>(),
-            self.right(x, y).collect::<Vec<_>>(),
-        ] {
+        let all_dirs: [Box<dyn Iterator<Item = u32>>; 4] = [
+            Box::new(self.up(x, y)),
+            Box::new(self.down(x, y)),
+            Box::new(self.left(x, y)),
+            Box::new(self.right(x, y)),
+        ];
+        for trees in all_dirs {
             let mut count = 0;
-            for tree in trees.iter() {
+            for tree in trees {
                 count += 1;
-                if *tree >= me {
+                if tree >= me {
                     break;
                 }
             }
